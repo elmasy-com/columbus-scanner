@@ -1,0 +1,28 @@
+#IMPORTANT: The scanner will overwrite the config file, to save the actual index.
+#           Create a new copy of this file!
+
+# URI to scan
+LogURI: https://ct.googleapis.com/logs/argon2022/
+
+# API key
+APIKey: 
+
+# Print successfully instered domains to STDERR. (default: false)
+PrintOK: false
+
+# UptimeHook is called every 60 second (if not empty) to indicate, that the scanner is running
+UptimeHook: 
+
+# --- Advanced ---
+
+# "Number of concurrent matchers. (default: 2)
+NumWorkers: 2
+
+# Max number of entries to request at per call to get-entries. (default: 1000)
+BatchSize: 1000
+
+# Number of concurrent GetEntries fetches. (default: 1)
+ParallelFetch: 1
+
+# Start index of the logs.
+StartIndex: 0
