@@ -14,7 +14,9 @@ make build
 
 Download and verify:
 ```bash 
-wget 'https://github.com/elmasy-com/columbus-scanner/releases/latest/download/columbus-scanner' && wget 'https://github.com/elmasy-com/columbus-scanner/releases/latest/download/columbus-scanner.sha' && sha512sum -c columbus-scanner.sha 
+wget -q 'https://github.com/elmasy-com/columbus-scanner/releases/latest/download/columbus-scanner' &&\
+wget -q 'https://github.com/elmasy-com/columbus-scanner/releases/latest/download/columbus-scanner.sha' &&\
+sha512sum -c columbus-scanner.sha
 ```
 
 0. Verify the binary:
