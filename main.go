@@ -22,8 +22,10 @@ import (
 )
 
 var (
-	config = flag.String("config", "", "Path to the config file")
-
+	Version string
+	Commit  string
+	config  = flag.String("config", "", "Path to the config file")
+	version = flag.Bool("version", false, "Print current version")
 	printOk bool
 )
 
@@ -108,6 +110,11 @@ func main() {
 
 	flag.Parse()
 
+	if *version {
+		fmt.Printf("Version: %s\n", Version)
+		fmt.Printf("Git Commit: %s\n", Commit)
+		os.Exit(0)
+	}
 	if *config == "" {
 		fmt.Fprintf(os.Stderr, "config is missing!\n")
 		os.Exit(1)
