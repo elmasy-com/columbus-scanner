@@ -32,12 +32,13 @@ func callUptimeHook(hook string) {
 
 	for {
 
+		time.Sleep(60 * time.Second)
+
 		_, err := http.Get(hook)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to call UptimeHook: %s\n", err)
 		}
 
-		time.Sleep(60 * time.Second)
 	}
 }
 
