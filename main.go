@@ -170,7 +170,7 @@ func main() {
 		},
 		Matcher:    scanner.MatchAll{},
 		NumWorkers: c.NumWorkers,
-		BufferSize: c.ParallelFetch * c.BatchSize,
+		BufferSize: c.ParallelFetch * c.BatchSize * 100,
 	}
 
 	s := scanner.NewScanner(logClient, opts)
