@@ -26,3 +26,6 @@ ParallelFetch: 1
 
 # Start index of the logs.
 StartIndex: 0
+
+# Server to insert to (default "https://columbus.elmasy.com")
+Server: https://columbus.elmasy.com

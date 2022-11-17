@@ -19,6 +19,7 @@ type Config struct {
 	BatchSize     int    `yaml:"BatchSize"`
 	ParallelFetch int    `yaml:"ParallelFetch"`
 	StartIndex    int64  `yaml:"StartIndex"`
+	Server        string `yaml:"Server"`
 	m             *sync.Mutex
 }
 
@@ -112,6 +113,10 @@ func ParseConfig(path string) (Config, error) {
 		fmt.Printf("Continue from index #%d\n", c.StartIndex)
 	case c.StartIndex < int64(c.BatchSize):
 		c.StartIndex = 0
+	}
+
+	if c.Server == "" {
+		c.Server = "https://columbus.elmasy.com"
 	}
 
 	return c, nil

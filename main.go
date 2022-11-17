@@ -126,6 +126,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	sdk.SetURI(c.Server)
+
 	go callUptimeHook(c.UptimeHook)
 	go saveConfig(*config, &c)
 	printOk = c.PrintOK
