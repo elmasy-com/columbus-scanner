@@ -20,6 +20,7 @@ type Config struct {
 	ParallelFetch int    `yaml:"ParallelFetch"`
 	StartIndex    int64  `yaml:"StartIndex"`
 	Server        string `yaml:"Server"`
+	BufferSize    int    `yaml:"BufferSize"`
 	m             *sync.Mutex
 }
 
@@ -117,6 +118,13 @@ func ParseConfig(path string) (Config, error) {
 
 	if c.Server == "" {
 		c.Server = "https://columbus.elmasy.com"
+	}
+
+	if c.BufferSize < 0 {
+		return c, fmt.Errorf("BufferSize is negative")
+	}
+	if c.BufferSize == 0 {
+		c.BufferSize = 5000
 	}
 
 	return c, nil

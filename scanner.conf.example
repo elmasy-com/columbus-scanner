@@ -29,3 +29,6 @@ StartIndex: 0
 
 # Server to insert to (default "https://columbus.elmasy.com")
 Server: https://columbus.elmasy.com
+
+# Buffer size to store fetched certs (default: 5000)
+BufferSize: 5000
