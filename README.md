@@ -26,7 +26,3 @@ sha512sum -c columbus-scanner.sha
 1. Place the binary somwhere
 2. Update and place the config file somewhere
 3. Update and install `columbus-scanner.service` somewhere
-
-## TODO
-
-- Add option to modify the server
