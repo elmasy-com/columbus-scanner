@@ -15,7 +15,7 @@ UptimeHook:
 
 # --- Advanced ---
 
-# "Number of concurrent matchers. (default: 2)
+# Number of concurrent matchers. (default: 2)
 NumWorkers: 2
 
 # Max number of entries to request at per call to get-entries. (default: 1000)
