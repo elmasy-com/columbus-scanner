@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	sdk "github.com/elmasy-com/columbus-sdk"
@@ -75,9 +74,7 @@ func insertPreCert(entry *ct.RawLogEntry) {
 		}
 		if err := sdk.Insert(domains[i]); err != nil {
 			if errors.Is(err, fault.ErrInvalidDomain) ||
-				errors.Is(err, fault.ErrPublicSuffix) ||
-				// Check string for backward compatibility
-				strings.Contains(err.Error(), "cannot derive eTLD+1 for domain") {
+				errors.Is(err, fault.ErrPublicSuffix) {
 				continue
 			}
 
@@ -130,9 +127,7 @@ func insertCert(entry *ct.RawLogEntry) {
 		}
 		if err := sdk.Insert(domains[i]); err != nil {
 			if errors.Is(err, fault.ErrInvalidDomain) ||
-				errors.Is(err, fault.ErrPublicSuffix) ||
-				// Check string for backward compatibility
-				strings.Contains(err.Error(), "cannot derive eTLD+1 for domain") {
+				errors.Is(err, fault.ErrPublicSuffix) {
 				continue
 			}
 
