@@ -10,4 +10,4 @@ build-dev:
 	go build -o columbus-scanner-dev --race .
 
 release: build
-	sha512sum columbus-scanner > columbus-scanner.sha
+	sha512sum columbus-scanner | gpg --clearsign -u daniel@elmasy.com > columbus-scanner.sha
