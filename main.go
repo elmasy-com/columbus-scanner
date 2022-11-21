@@ -29,6 +29,9 @@ var (
 	printOk bool
 )
 
+func skipPreCert(entry *ct.RawLogEntry) {
+}
+
 func insertCert(entry *ct.RawLogEntry) {
 
 	e, err := entry.ToLogEntry()
@@ -56,26 +59,6 @@ func insertCert(entry *ct.RawLogEntry) {
 		for i := range e.X509Cert.PermittedDNSDomains {
 			if !slices.Contain(domains, e.X509Cert.PermittedDNSDomains[i]) {
 				domains = append(domains, e.X509Cert.PermittedDNSDomains[i])
-			}
-		}
-	}
-
-	// Fetch domains from precert and send it to writer through domainChan
-	if e.Precert != nil && e.Precert.TBSCertificate != nil {
-
-		if !slices.Contain(domains, e.Precert.TBSCertificate.Subject.CommonName) {
-			domains = append(domains, e.Precert.TBSCertificate.Subject.CommonName)
-		}
-
-		for i := range e.Precert.TBSCertificate.DNSNames {
-			if !slices.Contain(domains, e.Precert.TBSCertificate.DNSNames[i]) {
-				domains = append(domains, e.Precert.TBSCertificate.DNSNames[i])
-			}
-		}
-
-		for i := range e.Precert.TBSCertificate.PermittedDNSDomains {
-			if !slices.Contain(domains, e.Precert.TBSCertificate.PermittedDNSDomains[i]) {
-				domains = append(domains, e.Precert.TBSCertificate.PermittedDNSDomains[i])
 			}
 		}
 	}
@@ -175,7 +158,7 @@ func main() {
 
 	s := scanner.NewScanner(logClient, opts)
 
-	err = s.Scan(context.Background(), insertCert, insertCert)
+	err = s.Scan(context.Background(), insertCert, skipPreCert)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scanner failed: %s\n", err)
 		os.Exit(1)
