@@ -2,7 +2,7 @@
 #           Create a new copy of this file!
 
 # URI to scan
-LogURI: https://ct.googleapis.com/logs/argon2022/
+LogURI: 
 
 # API key
 APIKey: 
@@ -24,7 +24,7 @@ BatchSize: 1000
 # Number of concurrent GetEntries fetches. (default: 1)
 ParallelFetch: 1
 
-# Start index of the logs.
+# Start index of the logs (default: 0)
 StartIndex: 0
 
 # Server to insert to (default "https://columbus.elmasy.com")
