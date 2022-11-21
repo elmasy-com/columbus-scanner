@@ -91,6 +91,8 @@ func insertPreCert(entry *ct.RawLogEntry) {
 // Insert Leaf Certificates
 func insertCert(entry *ct.RawLogEntry) {
 
+	IndexChan <- entry.Index
+
 	e, err := entry.ToLogEntry()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed convert %d to logentry: %s\n", entry.Index, err)
@@ -139,9 +141,6 @@ func insertCert(entry *ct.RawLogEntry) {
 			fmt.Printf("Domain (#%d) successfully inserted: %s\n", e.Index, domains[i])
 		}
 	}
-
-	// The index of failed converted entry is not sent.
-	IndexChan <- e.Index
 }
 
 func main() {
@@ -170,6 +169,8 @@ func main() {
 	go saveConfig(*config, &c)
 	printOk = c.PrintOK
 	skipPreCert = c.SkipPreCert
+
+	IndexChan = make(chan int64, c.BufferSize)
 
 	if err := sdk.GetDefaultUser(c.APIKey); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get Columbus user: %s\n", err)

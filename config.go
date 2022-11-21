@@ -47,8 +47,6 @@ func callUptimeHook(hook string) {
 
 func saveConfig(path string, c *Config) {
 
-	IndexChan = make(chan int64, c.BatchSize)
-
 	fmt.Printf("Background saver started!\n")
 
 	timer := time.NewTicker(60 * time.Second)
