@@ -22,16 +22,76 @@ import (
 )
 
 var (
-	Version string
-	Commit  string
-	config  = flag.String("config", "", "Path to the config file")
-	version = flag.Bool("version", false, "Print current version")
-	printOk bool
+	Version     string
+	Commit      string
+	config      = flag.String("config", "", "Path to the config file")
+	version     = flag.Bool("version", false, "Print current version")
+	printOk     bool
+	skipPreCert bool
 )
 
-func skipPreCert(entry *ct.RawLogEntry) {
+// insert Precertificates
+func insertPreCert(entry *ct.RawLogEntry) {
+
+	IndexChan <- entry.Index
+
+	if skipPreCert {
+		return
+	}
+
+	e, err := entry.ToLogEntry()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed convert %d to logentry: %s\n", entry.Index, err)
+		return
+	}
+
+	// Use this with slices.Contain() to filter duplicated domains (prefilter).
+	domains := make([]string, 0)
+
+	// Fetch domains from precert and send it to writer through domainChan
+	if e.Precert != nil && e.Precert.TBSCertificate != nil {
+
+		if !slices.Contain(domains, e.Precert.TBSCertificate.Subject.CommonName) {
+			domains = append(domains, e.Precert.TBSCertificate.Subject.CommonName)
+		}
+
+		for i := range e.Precert.TBSCertificate.DNSNames {
+			if !slices.Contain(domains, e.Precert.TBSCertificate.DNSNames[i]) {
+				domains = append(domains, e.Precert.TBSCertificate.DNSNames[i])
+			}
+		}
+
+		for i := range e.Precert.TBSCertificate.PermittedDNSDomains {
+			if !slices.Contain(domains, e.Precert.TBSCertificate.PermittedDNSDomains[i]) {
+				domains = append(domains, e.Precert.TBSCertificate.PermittedDNSDomains[i])
+			}
+		}
+	}
+
+	// Write only unique and valid domains
+	for i := range domains {
+		if !domain.IsValid(domains[i]) {
+			continue
+		}
+		if err := sdk.Insert(domains[i]); err != nil {
+			if errors.Is(err, fault.ErrInvalidDomain) ||
+				errors.Is(err, fault.ErrPublicSuffix) ||
+				// Check string for backward compatibility
+				strings.Contains(err.Error(), "cannot derive eTLD+1 for domain") {
+				continue
+			}
+
+			// Failed write is fatal error. Dont want to miss any domain.
+			fmt.Fprintf(os.Stderr, "Failed to write %s: %s\n", domains[i], err)
+			os.Exit(1)
+
+		} else if printOk {
+			fmt.Printf("Domain (#%d) successfully inserted: %s\n", e.Index, domains[i])
+		}
+	}
 }
 
+// Insert Leaf Certificates
 func insertCert(entry *ct.RawLogEntry) {
 
 	e, err := entry.ToLogEntry()
@@ -114,6 +174,7 @@ func main() {
 	go callUptimeHook(c.UptimeHook)
 	go saveConfig(*config, &c)
 	printOk = c.PrintOK
+	skipPreCert = c.SkipPreCert
 
 	if err := sdk.GetDefaultUser(c.APIKey); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get Columbus user: %s\n", err)
@@ -158,7 +219,7 @@ func main() {
 
 	s := scanner.NewScanner(logClient, opts)
 
-	err = s.Scan(context.Background(), insertCert, skipPreCert)
+	err = s.Scan(context.Background(), insertCert, insertPreCert)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scanner failed: %s\n", err)
 		os.Exit(1)

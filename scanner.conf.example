@@ -32,3 +32,6 @@ Server: https://columbus.elmasy.com
 
 # Buffer size to store fetched certs (default: 5000)
 BufferSize: 5000
+
+# Skip precertificates (default: false)
+SkipPreCert: false

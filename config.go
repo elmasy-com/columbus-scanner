@@ -21,6 +21,7 @@ type Config struct {
 	StartIndex    int64  `yaml:"StartIndex"`
 	Server        string `yaml:"Server"`
 	BufferSize    int    `yaml:"BufferSize"`
+	SkipPreCert   bool   `yaml:"SkipPreCert"`
 	m             *sync.Mutex
 }
 
