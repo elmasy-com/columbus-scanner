@@ -188,7 +188,7 @@ func main() {
 			IdleConnTimeout:       90 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
-	}, jsonclient.Options{UserAgent: "ct-go-scanlog/1.0"})
+	}, jsonclient.Options{UserAgent: "Columbus-Scanner"})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create log client: %s\n", err)
 		os.Exit(1)
