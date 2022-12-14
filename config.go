@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"sync"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -13,118 +11,112 @@ import (
 type Config struct {
 	LogURI        string `yaml:"LogURI"`
 	APIKey        string `yaml:"APIKey"`
-	PrintOK       bool   `yaml:"PrintOK"`
 	UptimeHook    string `yaml:"UptimeHook"`
 	NumWorkers    int    `yaml:"NumWorkers"`
 	BatchSize     int    `yaml:"BatchSize"`
 	ParallelFetch int    `yaml:"ParallelFetch"`
-	StartIndex    int64  `yaml:"StartIndex"`
+	StartIndex    int    `yaml:"StartIndex"`
 	Server        string `yaml:"Server"`
 	BufferSize    int    `yaml:"BufferSize"`
 	SkipPreCert   bool   `yaml:"SkipPreCert"`
 	m             *sync.Mutex
 }
 
-var IndexChan chan int64
+var Conf *Config
 
-func callUptimeHook(hook string) {
+func (c *Config) ToYaml() ([]byte, error) {
 
-	if hook == "" {
-		return
-	}
+	c.m.Lock()
+	defer c.m.Unlock()
 
-	for {
-
-		time.Sleep(60 * time.Second)
-
-		_, err := http.Get(hook)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to call UptimeHook: %s\n", err)
-		}
-
-	}
+	return yaml.Marshal(c)
 }
 
-func saveConfig(path string, c *Config) {
+// IncreaseIndex increase StartIndex by v.
+func (c *Config) IncreaseIndex(v int) {
 
-	fmt.Printf("Background saver started!\n")
-
-	timer := time.NewTicker(60 * time.Second)
-
-	for {
-
-		select {
-		case <-timer.C:
-			out, err := yaml.Marshal(&c)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to save config: %s", err)
-				continue
-			}
-
-			err = os.WriteFile(path, out, 0644)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to save config: %s\n", err)
-			}
-		case i := <-IndexChan:
-			if i > c.StartIndex {
-				c.StartIndex = i
-			}
-		}
-	}
+	c.m.Lock()
+	c.StartIndex += v
+	c.m.Unlock()
 }
 
-func ParseConfig(path string) (Config, error) {
+func (c *Config) GetIndex() int {
 
-	c := Config{}
+	c.m.Lock()
+	defer c.m.Unlock()
 
-	c.m = &sync.Mutex{}
+	return c.StartIndex
+}
+
+func (c *Config) GetBatchSize() int {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	return c.BatchSize
+}
+
+// ParseConfig parses the config file in path and set the global variable Conf.
+func ParseConfig(path string) error {
+
+	Conf = &Config{m: &sync.Mutex{}}
 
 	out, err := os.ReadFile(path)
 	if err != nil {
-		return c, fmt.Errorf("failed to read %s: %s", path, err)
+		return fmt.Errorf("failed to read %s: %s", path, err)
 	}
 
-	err = yaml.Unmarshal(out, &c)
+	err = yaml.Unmarshal(out, Conf)
 	if err != nil {
-		return c, fmt.Errorf("failed to unmarshal: %s", err)
+		return fmt.Errorf("failed to unmarshal: %s", err)
 	}
 
 	switch {
-	case c.LogURI == "":
-		return c, fmt.Errorf("LogURI is missing")
-	case c.APIKey == "":
-		return c, fmt.Errorf("APIKey is missing")
+	case Conf.LogURI == "":
+		return fmt.Errorf("LogURI is missing")
+	case Conf.APIKey == "":
+		return fmt.Errorf("APIKey is missing")
 	}
 
-	if c.NumWorkers == 0 {
-		c.NumWorkers = 2
+	if Conf.NumWorkers < 0 {
+		return fmt.Errorf("NumWorkers is negative")
 	}
-	if c.BatchSize == 0 {
-		c.BatchSize = 1000
+	if Conf.NumWorkers == 0 {
+		Conf.NumWorkers = 2
 	}
-	if c.ParallelFetch == 0 {
-		c.ParallelFetch = 1
+
+	if Conf.BatchSize < 0 {
+		return fmt.Errorf("BatchSize is negative")
+	}
+	if Conf.BatchSize == 0 {
+		Conf.BatchSize = 1000
+	}
+
+	if Conf.ParallelFetch < 0 {
+		return fmt.Errorf("ParallelFetch is negative")
+	}
+	if Conf.ParallelFetch == 0 {
+		Conf.ParallelFetch = 2
 	}
 
 	// removes the last batch*10, this is a very lazy method to ensure that every log is parsed.
 	switch {
-	case c.StartIndex > int64(c.BatchSize)*10:
-		c.StartIndex -= int64(c.BatchSize) * 10
-		fmt.Printf("Continue from index #%d\n", c.StartIndex)
-	case c.StartIndex < int64(c.BatchSize):
-		c.StartIndex = 0
+	case Conf.StartIndex > Conf.BatchSize*Conf.ParallelFetch*10:
+		Conf.StartIndex -= Conf.BatchSize * Conf.ParallelFetch * 10
+		fmt.Printf("Continue from index #%d\n", Conf.StartIndex)
+	case Conf.StartIndex <= Conf.BatchSize*Conf.ParallelFetch*10:
+		Conf.StartIndex = 0
 	}
 
-	if c.Server == "" {
-		c.Server = "https://columbus.elmasy.com"
+	if Conf.Server == "" {
+		Conf.Server = "https://columbus.elmasy.com"
 	}
 
-	if c.BufferSize < 0 {
-		return c, fmt.Errorf("BufferSize is negative")
+	if Conf.BufferSize < 0 {
+		return fmt.Errorf("BufferSize is negative")
 	}
-	if c.BufferSize == 0 {
-		c.BufferSize = 5000
+	if Conf.BufferSize == 0 {
+		Conf.BufferSize = 5000
 	}
 
-	return c, nil
+	return nil
 }

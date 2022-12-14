@@ -2,145 +2,58 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	sdk "github.com/elmasy-com/columbus-sdk"
-	"github.com/elmasy-com/columbus-sdk/fault"
-	"github.com/elmasy-com/elnet/domain"
-	"github.com/elmasy-com/slices"
-	"github.com/g0rbe/certificate-transparency-go/scanner"
+	"github.com/g0rbe/slitu"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/jsonclient"
-	"github.com/google/trillian/client/backoff"
 )
 
-var (
-	Version     string
-	Commit      string
-	config      = flag.String("config", "", "Path to the config file")
-	version     = flag.Bool("version", false, "Print current version")
-	printOk     bool
-	skipPreCert bool
-)
-
-// insert Precertificates
-func insertPreCert(entry *ct.RawLogEntry) {
-
-	IndexChan <- entry.Index
-
-	if skipPreCert {
-		return
-	}
-
-	e, err := entry.ToLogEntry()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed convert %d to logentry: %s\n", entry.Index, err)
-		return
-	}
-
-	// Use this with slices.Contain() to filter duplicated domains (prefilter).
-	domains := make([]string, 0)
-
-	// Fetch domains from precert and send it to writer through domainChan
-	if e.Precert != nil && e.Precert.TBSCertificate != nil {
-
-		if !slices.Contain(domains, e.Precert.TBSCertificate.Subject.CommonName) {
-			domains = append(domains, e.Precert.TBSCertificate.Subject.CommonName)
-		}
-
-		for i := range e.Precert.TBSCertificate.DNSNames {
-			if !slices.Contain(domains, e.Precert.TBSCertificate.DNSNames[i]) {
-				domains = append(domains, e.Precert.TBSCertificate.DNSNames[i])
-			}
-		}
-
-		for i := range e.Precert.TBSCertificate.PermittedDNSDomains {
-			if !slices.Contain(domains, e.Precert.TBSCertificate.PermittedDNSDomains[i]) {
-				domains = append(domains, e.Precert.TBSCertificate.PermittedDNSDomains[i])
-			}
-		}
-	}
-
-	// Write only unique and valid domains
-	for i := range domains {
-		if !domain.IsValid(domains[i]) {
-			continue
-		}
-		if err := sdk.Insert(domains[i]); err != nil {
-			if errors.Is(err, fault.ErrInvalidDomain) ||
-				errors.Is(err, fault.ErrPublicSuffix) {
-				continue
-			}
-
-			// Failed write is fatal error. Dont want to miss any domain.
-			fmt.Fprintf(os.Stderr, "Failed to write %s: %s\n", domains[i], err)
-			os.Exit(1)
-
-		} else if printOk {
-			fmt.Printf("Domain (#%d) successfully inserted: %s\n", e.Index, domains[i])
-		}
-	}
+type LeafEntry struct {
+	Index int64
+	Entry *ct.LeafEntry
 }
 
-// Insert Leaf Certificates
-func insertCert(entry *ct.RawLogEntry) {
+type IndexRange struct {
+	Start int
+	End   int
+}
 
-	IndexChan <- entry.Index
+var (
+	Version        string
+	Commit         string
+	configPath     = flag.String("config", "", "Path to the config file")
+	version        = flag.Bool("version", false, "Print current version")
+	LeafEntryChan  chan LeafEntry
+	IndexRangeChan chan IndexRange
+	Cancel         context.CancelFunc
+)
 
-	e, err := entry.ToLogEntry()
+func GetTreeSize() (int, error) {
+
+	logClient, err := client.New(
+		Conf.LogURI,
+		&http.Client{Timeout: 30 * time.Second},
+		jsonclient.Options{UserAgent: "Columbus-Scanner"})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed convert %d to logentry: %s\n", entry.Index, err)
-		return
+		return 0, fmt.Errorf("failed to create log client: %w", err)
 	}
 
-	// Use this with slices.Contain() to filter duplicated domains (prefilter).
-	domains := make([]string, 0)
-
-	// Fetch domains from cert and send it to writer through domainChan
-	if e.X509Cert != nil {
-
-		if !slices.Contain(domains, e.X509Cert.Subject.CommonName) {
-			domains = append(domains, e.X509Cert.Subject.CommonName)
-		}
-
-		for i := range e.X509Cert.DNSNames {
-			if !slices.Contain(domains, e.X509Cert.DNSNames[i]) {
-				domains = append(domains, e.X509Cert.DNSNames[i])
-			}
-		}
-
-		for i := range e.X509Cert.PermittedDNSDomains {
-			if !slices.Contain(domains, e.X509Cert.PermittedDNSDomains[i]) {
-				domains = append(domains, e.X509Cert.PermittedDNSDomains[i])
-			}
-		}
+	sth, err := logClient.GetSTH(context.TODO())
+	if err != nil {
+		return 0, fmt.Errorf("failed to get STH: %w", err)
 	}
 
-	// Write only unique and valid domains
-	for i := range domains {
-		if !domain.IsValid(domains[i]) {
-			continue
-		}
-		if err := sdk.Insert(domains[i]); err != nil {
-			if errors.Is(err, fault.ErrInvalidDomain) ||
-				errors.Is(err, fault.ErrPublicSuffix) {
-				continue
-			}
-
-			// Failed write is fatal error. Dont want to miss any domain.
-			fmt.Fprintf(os.Stderr, "Failed to write %s: %s\n", domains[i], err)
-			os.Exit(1)
-
-		} else if printOk {
-			fmt.Printf("Domain (#%d) successfully inserted: %s\n", e.Index, domains[i])
-		}
-	}
+	return int(sth.TreeSize), nil
 }
 
 func main() {
@@ -152,73 +65,101 @@ func main() {
 		fmt.Printf("Git Commit: %s\n", Commit)
 		os.Exit(0)
 	}
-	if *config == "" {
-		fmt.Fprintf(os.Stderr, "config is missing!\n")
+	if *configPath == "" {
+		fmt.Fprintf(os.Stderr, "-config is missing!\n")
 		os.Exit(1)
 	}
 
-	c, err := ParseConfig(*config)
+	err := ParseConfig(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to parse config: %s\n", err)
 		os.Exit(1)
 	}
 
-	sdk.SetURI(c.Server)
+	// Set SDK
+	sdk.SetURI(Conf.Server)
 
-	go callUptimeHook(c.UptimeHook)
-	go saveConfig(*config, &c)
-	printOk = c.PrintOK
-	skipPreCert = c.SkipPreCert
-
-	IndexChan = make(chan int64, c.BufferSize)
-
-	if err := sdk.GetDefaultUser(c.APIKey); err != nil {
+	if err := sdk.GetDefaultUser(Conf.APIKey); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get Columbus user: %s\n", err)
 		os.Exit(1)
 	}
 
-	logClient, err := client.New(c.LogURI, &http.Client{
-		Timeout: 60 * time.Second,
-		Transport: &http.Transport{
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 60 * time.Second,
-			MaxIdleConnsPerHost:   200,
-			DisableKeepAlives:     false,
-			MaxIdleConns:          200,
-			IdleConnTimeout:       90 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}, jsonclient.Options{UserAgent: "Columbus-Scanner"})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create log client: %s\n", err)
-		os.Exit(1)
+	IndexRangeChan = make(chan IndexRange)
+	LeafEntryChan = make(chan LeafEntry, Conf.BufferSize)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	Cancel = cancel
+	wg := sync.WaitGroup{}
+	fetchWg := sync.WaitGroup{}
+
+	wg.Add(2)
+	go UptimeWorker(Conf.UptimeHook, ctx, &wg)
+	go SaveConfigWorker(*configPath, ctx, &wg)
+
+	for i := 0; i < Conf.NumWorkers; i++ {
+		wg.Add(1)
+		go InsertWorker(i, &wg)
+	}
+	for i := 0; i < Conf.ParallelFetch; i++ {
+		fetchWg.Add(1)
+		go FetchWorker(i, &fetchWg)
 	}
 
-	opts := scanner.ScannerOptions{
-		FetcherOptions: scanner.FetcherOptions{
-			BatchSize:     c.BatchSize,
-			ParallelFetch: c.ParallelFetch,
-			StartIndex:    c.StartIndex,
-			//EndIndex:      *endIndex, // Always use getSTH.
-			Continuous: true,
-			LogBackoff: &backoff.Backoff{
-				Min:    1 * time.Second,
-				Max:    3600 * time.Second,
-				Factor: 2,
-				Jitter: true,
-			},
-		},
-		Matcher:    scanner.MatchAll{},
-		NumWorkers: c.NumWorkers,
-		BufferSize: c.BufferSize,
+infiniteLoop:
+	for {
+
+		size, err := GetTreeSize()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to get TreeSize: %s\n", err)
+			cancel()
+			break
+		}
+
+		for Conf.GetIndex() < size {
+
+			select {
+			case <-ctx.Done():
+				break infiniteLoop
+			default:
+
+				batch := 0
+
+				// Do not query more entry than size.
+				if size-Conf.GetIndex() < Conf.GetBatchSize() {
+					batch = size - Conf.GetIndex()
+				} else {
+					batch = Conf.GetBatchSize()
+				}
+
+				ir := IndexRange{Start: Conf.GetIndex()}
+				ir.End = ir.Start + batch
+
+				// BLOCKED HERE
+				IndexRangeChan <- ir
+
+				// Update Index after sent to the workers
+				Conf.IncreaseIndex(batch)
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			break infiniteLoop
+		default:
+			slitu.Sleep(ctx, 60*time.Second)
+		}
 	}
 
-	s := scanner.NewScanner(logClient, opts)
+	// Close FetchWorkers first
+	fmt.Printf("Closing fetchers...\n")
+	close(IndexRangeChan)
+	fetchWg.Wait()
 
-	err = s.Scan(context.Background(), insertCert, insertPreCert)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Scanner failed: %s\n", err)
-		os.Exit(1)
-	}
+	fmt.Printf("Closing insert workers...\n")
+	close(LeafEntryChan)
 
+	fmt.Printf("Waiting to close...\n")
+	wg.Wait()
+	fmt.Printf("Closed!\n")
 }
