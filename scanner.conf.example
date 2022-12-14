@@ -7,9 +7,6 @@ LogURI:
 # API key
 APIKey: 
 
-# Print successfully instered domains to STDERR. (default: false)
-PrintOK: false
-
 # UptimeHook is called every 60 second (if not empty) to indicate, that the scanner is running
 UptimeHook: 
 
@@ -21,8 +18,8 @@ NumWorkers: 2
 # Max number of entries to request at per call to get-entries. (default: 1000)
 BatchSize: 1000
 
-# Number of concurrent GetEntries fetches. (default: 1)
-ParallelFetch: 1
+# Number of concurrent GetEntries fetches. (default: 2)
+ParallelFetch: 2
 
 # Start index of the logs (default: 0)
 StartIndex: 0
