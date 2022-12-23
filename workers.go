@@ -30,8 +30,6 @@ func UptimeWorker(hook string, ctx context.Context, wg *sync.WaitGroup) {
 
 	httpClient := http.Client{Timeout: 30 * time.Second}
 
-	fmt.Printf("Uptime hook started!\n")
-
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
@@ -56,8 +54,6 @@ func UptimeWorker(hook string, ctx context.Context, wg *sync.WaitGroup) {
 func SaveConfigWorker(path string, ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
-
-	fmt.Printf("Background saver started!\n")
 
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -88,8 +84,6 @@ func SaveConfigWorker(path string, ctx context.Context, wg *sync.WaitGroup) {
 func InsertWorker(id int, wg *sync.WaitGroup) {
 
 	defer wg.Done()
-
-	fmt.Printf("InsertWorker #%d is started!\n", id)
 
 	for entry := range LeafEntryChan {
 
@@ -151,8 +145,6 @@ func InsertWorker(id int, wg *sync.WaitGroup) {
 			}
 		}
 	}
-
-	fmt.Printf("InsertWorker #%d is stopped!\n", id)
 }
 
 // FetchWorker is fetching certificates from log and send it into LeafEntryChan.
@@ -160,8 +152,6 @@ func InsertWorker(id int, wg *sync.WaitGroup) {
 func FetchWorker(id int, wg *sync.WaitGroup) {
 
 	defer wg.Done()
-
-	fmt.Printf("FetchWorker #%d is started!\n", id)
 
 	logClient, err := client.New(
 		Conf.LogURI,
@@ -199,6 +189,4 @@ func FetchWorker(id int, wg *sync.WaitGroup) {
 			}
 		}
 	}
-
-	fmt.Printf("FetchWorker #%d is stopped!\n", id)
 }
