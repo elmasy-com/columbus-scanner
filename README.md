@@ -23,7 +23,7 @@ Download and verify:
 ```bash 
 wget -q 'https://github.com/elmasy-com/columbus-scanner/releases/latest/download/columbus-scanner' -O columbus-scanner && \
 wget -q 'https://github.com/elmasy-com/columbus-scanner/releases/latest/download/columbus-scanner.sha' -O columbus-scanner.sha && \
-wget -q 'https://github.com/elmasy-com/columbus-scanner/releases/latest/download/scanner.conf.example' -O scanner.conf && \
+wget -q 'https://raw.githubusercontent.com/elmasy-com/columbus-scanner/main/scanner.conf.example' -O scanner.conf && \
 gpg --verify columbus-scanner.sha && sha512sum -c columbus-scanner.sha && rm columbus-scanner.sha && chmod +x columbus-scanner
 ```
 
