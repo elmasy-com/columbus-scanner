@@ -27,6 +27,6 @@ wget -q 'https://raw.githubusercontent.com/elmasy-com/columbus-scanner/main/scan
 gpg --verify columbus-scanner.sha && sha512sum -c columbus-scanner.sha && rm columbus-scanner.sha && chmod +x columbus-scanner
 ```
 
-1. Place the binary somwhere
+1. Place the binary somewhere
 2. Update and place the config file somewhere
 3. Update and install `columbus-scanner.service` somewhere
