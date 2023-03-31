@@ -4,8 +4,8 @@
 # URI to scan
 LogURI: 
 
-# API key
-APIKey: 
+# MongoDB URI to connect to
+MongoURI: 
 
 # UptimeHook is called every 60 second (if not empty) to indicate, that the scanner is running
 UptimeHook: 
@@ -24,11 +24,11 @@ ParallelFetch: 2
 # Start index of the logs (default: 0)
 StartIndex: 0
 
-# Server to insert to (default "https://columbus.elmasy.com")
-Server: https://columbus.elmasy.com
-
 # Buffer size to store fetched certs (default: 5000)
 BufferSize: 5000
 
 # Skip precertificates (default: false)
 SkipPreCert: false
+
+# Verbose logging (default: false)
+Verbose: false

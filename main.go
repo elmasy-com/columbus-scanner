@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	sdk "github.com/elmasy-com/columbus-sdk"
+	"github.com/elmasy-com/columbus-sdk/db"
 	"github.com/g0rbe/slitu"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/client"
@@ -76,13 +76,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set SDK
-	sdk.SetURI(Conf.Server)
-
-	if err := sdk.GetDefaultUser(Conf.APIKey); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get Columbus user: %s\n", err)
+	err = db.Connect(Conf.MongoURI)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to connect to MongoDB: %s\n", err)
 		os.Exit(1)
 	}
+	defer db.Disconnect()
 
 	IndexRangeChan = make(chan IndexRange)
 	LeafEntryChan = make(chan LeafEntry, Conf.BufferSize)
@@ -114,6 +113,10 @@ infiniteLoop:
 			fmt.Fprintf(os.Stderr, "Failed to get TreeSize: %s\n", err)
 			cancel()
 			break
+		}
+
+		if Conf.Verbose {
+			fmt.Printf("Log size: %d\n", size)
 		}
 
 		for Conf.GetIndex() < size {

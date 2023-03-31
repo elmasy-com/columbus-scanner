@@ -10,15 +10,15 @@ import (
 
 type Config struct {
 	LogURI        string `yaml:"LogURI"`
-	APIKey        string `yaml:"APIKey"`
+	MongoURI      string `yaml:"MongoURI"`
 	UptimeHook    string `yaml:"UptimeHook"`
 	NumWorkers    int    `yaml:"NumWorkers"`
 	BatchSize     int    `yaml:"BatchSize"`
 	ParallelFetch int    `yaml:"ParallelFetch"`
 	StartIndex    int    `yaml:"StartIndex"`
-	Server        string `yaml:"Server"`
 	BufferSize    int    `yaml:"BufferSize"`
 	SkipPreCert   bool   `yaml:"SkipPreCert"`
+	Verbose       bool   `yaml:"Verbose"`
 	m             *sync.Mutex
 }
 
@@ -73,8 +73,8 @@ func ParseConfig(path string) error {
 	switch {
 	case Conf.LogURI == "":
 		return fmt.Errorf("LogURI is missing")
-	case Conf.APIKey == "":
-		return fmt.Errorf("APIKey is missing")
+	case Conf.MongoURI == "":
+		return fmt.Errorf("MongoURI is missing")
 	}
 
 	if Conf.NumWorkers < 0 {
@@ -105,10 +105,6 @@ func ParseConfig(path string) error {
 		fmt.Printf("Continue from index #%d\n", Conf.StartIndex)
 	case Conf.StartIndex <= Conf.BatchSize*Conf.ParallelFetch*10:
 		Conf.StartIndex = 0
-	}
-
-	if Conf.Server == "" {
-		Conf.Server = "https://columbus.elmasy.com"
 	}
 
 	if Conf.BufferSize < 0 {

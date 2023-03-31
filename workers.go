@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	sdk "github.com/elmasy-com/columbus-sdk"
+	"github.com/elmasy-com/columbus-sdk/db"
 	"github.com/elmasy-com/columbus-sdk/fault"
 	"github.com/elmasy-com/elnet/domain"
 	"github.com/elmasy-com/slices"
@@ -129,12 +129,21 @@ func InsertWorker(id int, wg *sync.WaitGroup) {
 			}
 		}
 
+		var d string
+
 		// Write only unique and valid domains
 		for i := range domains {
 			if !domain.IsValid(domains[i]) {
 				continue
 			}
-			if err := sdk.Insert(domains[i]); err != nil {
+
+			d = domain.Clean(domains[i])
+
+			if Conf.Verbose {
+				fmt.Printf("Inserting %s ...\n", d)
+			}
+
+			if err := db.Insert(d); err != nil {
 				if errors.Is(err, fault.ErrPublicSuffix) {
 					continue
 				}
