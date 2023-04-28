@@ -140,7 +140,7 @@ func InsertWorker(id int, wg *sync.WaitGroup) {
 			d = domain.Clean(domains[i])
 
 			if Conf.Verbose {
-				fmt.Printf("Inserting %s ...\n", d)
+				fmt.Printf("Inserting %d %s ...\n", entry.Index, d)
 			}
 
 			if err := db.Insert(d); err != nil {
