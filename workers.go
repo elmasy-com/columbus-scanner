@@ -144,12 +144,15 @@ func InsertWorker(id int, wg *sync.WaitGroup) {
 			}
 
 			if err := db.Insert(d); err != nil {
-				if errors.Is(err, fault.ErrPublicSuffix) {
-					continue
-				}
 
 				// Failed insert is fatal error. Dont want to miss any domain.
 				fmt.Fprintf(os.Stderr, "Failed to write %s: %s\n", domains[i], err)
+
+				// d is probably a TLD
+				if errors.Is(err, fault.ErrGetPartsFailed) {
+					continue
+				}
+
 				Cancel()
 			}
 		}
