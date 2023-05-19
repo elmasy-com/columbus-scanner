@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/elmasy-com/columbus-sdk v0.8.2
 	github.com/elmasy-com/elnet v0.0.0-20230428053729-e41db50c9c3a
+	github.com/elmasy-com/go-ctstream v0.0.0-20230519123147-42de19a29fa2
 	github.com/elmasy-com/slices v0.0.0-20230207195255-fd5719a026da
 	github.com/g0rbe/slitu v1.0.3
 	github.com/google/certificate-transparency-go v1.1.6
