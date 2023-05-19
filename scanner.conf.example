@@ -1,8 +1,9 @@
 #IMPORTANT: The scanner will overwrite the config file, to save the actual index.
 #           Create a new copy of this file!
 
-# URI to scan
-LogURI: 
+# Log to scan by name.
+# From: https://github.com/elmasy-com/go-ctstream/blob/main/logs.go
+LogName: 
 
 # MongoDB URI to connect to
 MongoURI: 
@@ -12,20 +13,14 @@ UptimeHook:
 
 # --- Advanced ---
 
-# Number of concurrent matchers. (default: 2)
-NumWorkers: 2
+# Number of concurrent worker to insert the result to the database. (default: 2)
+InsertWorkers: 40
 
-# Max number of entries to request at per call to get-entries. (default: 1000)
-BatchSize: 1000
+# Number of concurrent worker to fetch the log. (default: 2)
+FetcherWorker: 2
 
-# Number of concurrent GetEntries fetches. (default: 2)
-ParallelFetch: 2
-
-# Start index of the logs (default: 0)
-StartIndex: 0
-
-# Buffer size to store fetched certs (default: 5000)
-BufferSize: 5000
+# Path to the file to get/save index.
+IndexFile: scanner.index
 
 # Skip precertificates (default: false)
 SkipPreCert: false
