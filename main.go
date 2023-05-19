@@ -110,7 +110,7 @@ infiniteLoop:
 				break infiniteLoop
 			}
 
-			fmt.Printf("%s progress: %d/%d(%.2f%%)\n", Conf.LogName, Index.Load(), scanner.End, float64(Index.Load())/float64(scanner.End))
+			fmt.Printf("%s progress: %d/%d(%.2f%%)\n", Conf.LogName, Index.Load(), scanner.End, float64(Index.Load())/float64(scanner.End)*100)
 
 			for i := 0; i < Conf.InsertWorkers; i++ {
 				wg.Add(1)
