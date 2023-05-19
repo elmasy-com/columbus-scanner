@@ -2,20 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/elmasy-com/columbus-sdk/db"
+	"github.com/elmasy-com/go-ctstream"
 	"github.com/g0rbe/slitu"
 	ct "github.com/google/certificate-transparency-go"
-	"github.com/google/certificate-transparency-go/client"
-	"github.com/google/certificate-transparency-go/jsonclient"
 )
 
 type LeafEntry struct {
@@ -38,24 +38,6 @@ var (
 	Cancel         context.CancelFunc
 )
 
-func GetTreeSize() (int, error) {
-
-	logClient, err := client.New(
-		Conf.LogURI,
-		&http.Client{Timeout: 30 * time.Second},
-		jsonclient.Options{UserAgent: "Columbus-Scanner"})
-	if err != nil {
-		return 0, fmt.Errorf("failed to create log client: %w", err)
-	}
-
-	sth, err := logClient.GetSTH(context.TODO())
-	if err != nil {
-		return 0, fmt.Errorf("failed to get STH: %w", err)
-	}
-
-	return int(sth.TreeSize), nil
-}
-
 func main() {
 
 	flag.Parse()
@@ -65,10 +47,13 @@ func main() {
 		fmt.Printf("Git Commit: %s\n", Commit)
 		os.Exit(0)
 	}
+
 	if *configPath == "" {
 		fmt.Fprintf(os.Stderr, "-config is missing!\n")
 		os.Exit(1)
 	}
+
+	fmt.Printf("Reading config file %s...\n", *configPath)
 
 	err := ParseConfig(*configPath)
 	if err != nil {
@@ -76,6 +61,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	fmt.Printf("Loading index from %s...\n", Conf.IndexFile)
+
+	err = LoadIndex(Conf.IndexFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load index: %s\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Continue from index %d\n", Index.Load())
+
+	fmt.Printf("Connecting to MongoDB...\n")
 	err = db.Connect(Conf.MongoURI)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to connect to MongoDB: %s\n", err)
@@ -83,84 +79,55 @@ func main() {
 	}
 	defer db.Disconnect()
 
-	IndexRangeChan = make(chan IndexRange)
-	LeafEntryChan = make(chan LeafEntry, Conf.BufferSize)
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	Cancel = cancel
-	wg := sync.WaitGroup{}
-	fetchWg := sync.WaitGroup{}
+	wg := new(sync.WaitGroup)
 
-	wg.Add(2)
-	go UptimeWorker(Conf.UptimeHook, ctx, &wg)
-	go SaveConfigWorker(*configPath, ctx, &wg)
+	wg.Add(1)
+	go UptimeWorker(Conf.UptimeHook, ctx, wg)
 
-	for i := 0; i < Conf.NumWorkers; i++ {
-		wg.Add(1)
-		go InsertWorker(i, &wg)
-	}
-	for i := 0; i < Conf.ParallelFetch; i++ {
-		fetchWg.Add(1)
-		go FetchWorker(i, &fetchWg)
-	}
+	wg.Add(1)
+	go IndexSaver(ctx, wg)
 
 infiniteLoop:
 	for {
-
-		size, err := GetTreeSize()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get TreeSize: %s\n", err)
-			cancel()
-			break
-		}
-
-		if Conf.Verbose {
-			fmt.Printf("Log size: %d\n", size)
-		}
-
-		for Conf.GetIndex() < size {
-
-			select {
-			case <-ctx.Done():
-				break infiniteLoop
-			default:
-
-				batch := 0
-
-				// Do not query more entry than size.
-				if size-Conf.GetIndex() < Conf.GetBatchSize() {
-					batch = size - Conf.GetIndex()
-				} else {
-					batch = Conf.GetBatchSize()
-				}
-
-				ir := IndexRange{Start: Conf.GetIndex()}
-				ir.End = ir.Start + batch
-
-				// BLOCKED HERE
-				IndexRangeChan <- ir
-
-				// Update Index after sent to the workers
-				Conf.IncreaseIndex(batch)
-			}
-		}
 
 		select {
 		case <-ctx.Done():
 			break infiniteLoop
 		default:
-			slitu.Sleep(ctx, 60*time.Second)
+
+			scanner, err := ctstream.NewScanner(ctx, ctstream.FindByName(Conf.LogName), int(Index.Load()), Conf.FetcherWorker, Conf.SkipPreCert)
+			if err != nil {
+				if errors.Is(err, ctstream.ErrNothingToDo) {
+					fmt.Printf("Nothing to do...\n")
+					slitu.Sleep(ctx, 60*time.Second)
+					continue infiniteLoop
+				}
+				fmt.Fprintf(os.Stderr, "Failed to create scanner: %s\n", err)
+				Cancel()
+				break infiniteLoop
+			}
+
+			fmt.Printf("%s progress: %d/%d(%.2f%%)\n", Conf.LogName, Index.Load(), scanner.End, float64(Index.Load())/float64(scanner.End))
+
+			for i := 0; i < Conf.InsertWorkers; i++ {
+				wg.Add(1)
+				go InsertWorker(scanner.EntryChan, wg)
+			}
+
+			for err := range scanner.ErrChan {
+				fmt.Fprintf(os.Stderr, "Scanner error: %s\n", err)
+				if !strings.Contains(err.Error(), "NonFatalErrors") {
+					Cancel()
+					break infiniteLoop
+				}
+			}
 		}
+
+		slitu.Sleep(ctx, 60*time.Second)
 	}
-
-	// Close FetchWorkers first
-	fmt.Printf("Closing fetchers...\n")
-	close(IndexRangeChan)
-	fetchWg.Wait()
-
-	fmt.Printf("Closing insert workers...\n")
-	close(LeafEntryChan)
 
 	fmt.Printf("Waiting to close...\n")
 	wg.Wait()
