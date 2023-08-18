@@ -1,5 +1,11 @@
 # columbus-scanner
 
+## This repository is deprecated!
+
+:bangbang: The server component is moved to [https://github.com/elmasy-com/columbus](https://github.com/elmasy-com/columbus).
+
+-----
+
 This program is used to parse the certificates from a CT log and insert into the Columbus database. 
 
 ## Build
